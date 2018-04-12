@@ -5,7 +5,7 @@ var client = new mc.Client();
 client.connect(() => {
   console.log("connected to memcache on local host port 11211!")
 });
-client.setAdapter(mc.Adapter.json)
+//client.setAdapter(mc.Adapter.string)
 var mysql = require('mysql');
 var connection = mysql.createConnection({host: 'localhost', user: 'jastworld', password: 'jastworld', database: 'hw7'});
 
@@ -19,15 +19,18 @@ app.get("/hw7", (req, res, next) => {
   ///hw7?club=HOU&pos=M
   var club = req.query.club + "";
   var position = req.query.pos + "";
-  console.log(position + " <> " + club)
-  client.get(club.toUpperCase() + position.toUpperCase(), function(err, response) {
+  var key = club.toUpperCase() + position.toUpperCase();
+  console.log(key)
+  client.get(key, function(err, response) {
     if (!err) {
       console.log('found in cache')
-      return response[club.toUpperCase() + position.toUpperCase()];
+      return res.json(
+		JSON.parse(response[club.toUpperCase() + position.toUpperCase()])
+	);
     } else {
       console.log('!found in cache')
       //{ club:, pos:, max_assists:, player:, avg_assists:}
-      connection.query('select * from `assists` where `POS` = ? and `club` = ? ORDER BY A DESC, GS DESC', [
+      connection.query('select * from `assists` where `POS` = ? and `club` = ? ORDER BY A DESC, GS DESC, Player', [
         position, club
       ], function(err, player) {
         //console.log(err)
@@ -37,10 +40,12 @@ app.get("/hw7", (req, res, next) => {
 
         //console.log(req.query.pos);
         //console.log(req.query.club);
-        connection.query('SELECT AVG(A) AS average FROM assists', function(err, result) {
+        connection.query('SELECT AVG(A) AS average FROM assists WHERE `POS` = ? and `club` = ?',[
+        position, club
+      ] ,function(err, result) {
           var response = {club: player[0].Club, pos: player[0].POS, max_assists: player[0].A, player: player[0].Player, avg_assists: result[0].average};
           res.json(response);
-          client.set(club.toUpperCase() + position.toUpperCase(), response,function(err,status){
+          client.set(key, JSON.stringify(response),function(err,status){
             if(!err){
               console.log(status)
             }
